@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 
 import { useStore } from "../../store";
 import { toDateOnly, type Task } from "../../types";
-import { IconArrowRight, IconCheck, IconGrip } from "../icons";
+import { IconArrowRight, IconCheck, IconClose, IconGrip } from "../icons";
 
 export function TasksChunk() {
   const selectedDate = useStore((s) => s.selectedDate);
@@ -44,11 +44,7 @@ export function TasksChunk() {
   };
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-        Tasks
-      </h2>
-
+    <>
       {/* Today's tasks: long-press to reorder, or drag onto the grid (§6.6). */}
       <SortableContext items={todayIds} strategy={verticalListSortingStrategy}>
         <ul className="flex flex-col">
@@ -87,7 +83,7 @@ export function TasksChunk() {
           </ul>
         )}
       </div>
-    </section>
+    </>
   );
 }
 
@@ -124,6 +120,22 @@ function TaskTitleInput({ task }: { task: Task }) {
         task.isCompleted ? "text-[var(--muted)] line-through" : "text-[var(--fg)]",
       ].join(" ")}
     />
+  );
+}
+
+function DeleteTaskButton({ id }: { id: string }) {
+  const deleteTask = useStore((s) => s.deleteTask);
+  return (
+    <button
+      type="button"
+      onClick={() => deleteTask(id)}
+      onPointerDown={(e) => e.stopPropagation()}
+      title="Delete task"
+      aria-label="Delete task"
+      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition-opacity hover:bg-[var(--hover)] hover:text-[var(--fg)] group-hover:opacity-100"
+    >
+      <IconClose width={14} height={14} />
+    </button>
   );
 }
 
@@ -177,6 +189,7 @@ function SortableTask({ task }: { task: Task }) {
       </span>
       <TaskCheckbox task={task} />
       <TaskTitleInput task={task} />
+      <DeleteTaskButton id={task.id} />
       <MoveToTomorrowButton id={task.id} />
     </li>
   );
@@ -188,6 +201,7 @@ function PlainTask({ task }: { task: Task }) {
       <span className="w-4 flex-shrink-0" />
       <TaskCheckbox task={task} />
       <TaskTitleInput task={task} />
+      <DeleteTaskButton id={task.id} />
       <MoveToTomorrowButton id={task.id} />
     </li>
   );

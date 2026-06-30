@@ -13,6 +13,7 @@ import {
   type Habit,
   type ISOTimestamp,
   type Meal,
+  type RightSection,
   type Task,
   type Theme,
 } from "./types";
@@ -44,7 +45,22 @@ function createSeedState(): AppState {
     leftSidebarOpen: true,
     rightSidebarOpen: true,
     theme: "light",
+    rightSidebarWidth: 340,
+    tasksCollapsed: false,
+    mealsCollapsed: false,
+    habitsCollapsed: false,
+    mealsHeight: 200,
+    habitsHeight: 220,
   };
+}
+
+export const RIGHT_SIDEBAR_MIN_WIDTH = 300;
+export const RIGHT_SIDEBAR_MAX_WIDTH = 680;
+export const SECTION_MIN_HEIGHT = 96;
+export const SECTION_MAX_HEIGHT = 600;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +128,11 @@ type Actions = {
   toggleRightSidebar: () => void;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+
+  // Right-sidebar layout
+  setRightSidebarWidth: (px: number) => void;
+  toggleSection: (section: RightSection) => void;
+  setSectionHeight: (section: "meals" | "habits", px: number) => void;
 };
 
 /** Transient (non-persisted) flags layered on top of the persisted AppState. */
@@ -147,6 +168,12 @@ function pickAppState(s: StoreState): AppState {
     leftSidebarOpen: s.leftSidebarOpen,
     rightSidebarOpen: s.rightSidebarOpen,
     theme: s.theme,
+    rightSidebarWidth: s.rightSidebarWidth,
+    tasksCollapsed: s.tasksCollapsed,
+    mealsCollapsed: s.mealsCollapsed,
+    habitsCollapsed: s.habitsCollapsed,
+    mealsHeight: s.mealsHeight,
+    habitsHeight: s.habitsHeight,
   };
 }
 
@@ -398,6 +425,27 @@ export const useStore = create<StoreState>((set, get) => ({
   setTheme: (theme) => set({ theme }),
   toggleTheme: () =>
     set((s) => ({ theme: s.theme === "light" ? "dark" : "light" })),
+
+  setRightSidebarWidth: (px) =>
+    set({
+      rightSidebarWidth: clamp(
+        Math.round(px),
+        RIGHT_SIDEBAR_MIN_WIDTH,
+        RIGHT_SIDEBAR_MAX_WIDTH,
+      ),
+    }),
+  toggleSection: (section) =>
+    set((s) => {
+      if (section === "tasks") return { tasksCollapsed: !s.tasksCollapsed };
+      if (section === "meals") return { mealsCollapsed: !s.mealsCollapsed };
+      return { habitsCollapsed: !s.habitsCollapsed };
+    }),
+  setSectionHeight: (section, px) =>
+    set(
+      section === "meals"
+        ? { mealsHeight: clamp(Math.round(px), SECTION_MIN_HEIGHT, SECTION_MAX_HEIGHT) }
+        : { habitsHeight: clamp(Math.round(px), SECTION_MIN_HEIGHT, SECTION_MAX_HEIGHT) },
+    ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -427,7 +475,13 @@ function shallowEqualAppState(a: AppState, b: AppState): boolean {
     a.selectedDate === b.selectedDate &&
     a.leftSidebarOpen === b.leftSidebarOpen &&
     a.rightSidebarOpen === b.rightSidebarOpen &&
-    a.theme === b.theme
+    a.theme === b.theme &&
+    a.rightSidebarWidth === b.rightSidebarWidth &&
+    a.tasksCollapsed === b.tasksCollapsed &&
+    a.mealsCollapsed === b.mealsCollapsed &&
+    a.habitsCollapsed === b.habitsCollapsed &&
+    a.mealsHeight === b.mealsHeight &&
+    a.habitsHeight === b.habitsHeight
   );
 }
 

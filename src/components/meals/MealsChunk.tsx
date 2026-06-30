@@ -22,37 +22,23 @@ export function MealsChunk() {
   const appendRow = () => addMeal({ date: selectedDate });
 
   return (
-    <section className="flex-shrink-0 border-t border-[var(--border)] p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-          Meals
-        </h2>
-        <button
-          type="button"
-          onClick={appendRow}
-          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--fg)]"
-        >
-          <IconPlus width={13} height={13} />
-          Add Meal
-        </button>
-      </div>
-
-      {dayMeals.length === 0 ? (
-        <button
-          type="button"
-          onClick={appendRow}
-          className="w-full rounded-md px-2 py-2 text-left text-xs text-[var(--muted)] hover:bg-[var(--hover)]"
-        >
-          Add a meal for today
-        </button>
-      ) : (
+    <>
+      {dayMeals.length > 0 && (
         <ul className="flex flex-col">
           {dayMeals.map((meal) => (
             <MealRow key={meal.id} meal={meal} onEnter={appendRow} />
           ))}
         </ul>
       )}
-    </section>
+      <button
+        type="button"
+        onClick={appendRow}
+        className="mt-1 flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--fg)]"
+      >
+        <IconPlus width={13} height={13} />
+        {dayMeals.length === 0 ? "Add a meal for today" : "Add meal"}
+      </button>
+    </>
   );
 }
 

@@ -10,6 +10,7 @@ import {
 import { useStore } from "../store";
 import type { DateOnly } from "../types";
 import { CategoryManager } from "./CategoryManager";
+import { Markdown } from "./Markdown";
 import { IconClose, IconPlus } from "./icons";
 
 function minutesToHHMM(min: number): string {
@@ -40,6 +41,7 @@ export function EventEditor({
   const deleteEvent = useStore((s) => s.deleteEvent);
 
   const [manageOpen, setManageOpen] = useState(false);
+  const [notesMode, setNotesMode] = useState<"write" | "preview">("write");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -167,14 +169,49 @@ export function EventEditor({
           </div>
         </div>
 
-        {/* Notes */}
-        <textarea
-          value={event.notes}
-          onChange={(e) => updateEvent(event.id, { notes: e.target.value })}
-          placeholder="Add notes…"
-          rows={3}
-          className="mb-3 w-full resize-none rounded-md bg-[var(--hover)] px-2 py-1.5 text-sm text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none"
-        />
+        {/* Notes — markdown supported. Switch to Preview for clickable links. */}
+        <div className="mb-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+              Notes
+            </span>
+            <div className="flex items-center gap-0.5 rounded-md bg-[var(--hover)] p-0.5 text-xs">
+              {(["write", "preview"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setNotesMode(mode)}
+                  className={[
+                    "rounded px-2 py-0.5 capitalize transition-colors",
+                    notesMode === mode
+                      ? "bg-[var(--panel)] text-[var(--fg)] shadow-sm"
+                      : "text-[var(--muted)] hover:text-[var(--fg)]",
+                  ].join(" ")}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {notesMode === "write" ? (
+            <textarea
+              value={event.notes}
+              onChange={(e) => updateEvent(event.id, { notes: e.target.value })}
+              placeholder="Add notes… (markdown: **bold**, [link](https://…), - lists)"
+              rows={4}
+              className="w-full resize-y rounded-md bg-[var(--hover)] px-2 py-1.5 font-mono text-sm text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none"
+            />
+          ) : event.notes.trim() ? (
+            <div className="max-h-48 min-h-[3.5rem] overflow-y-auto rounded-md bg-[var(--hover)] px-2.5 py-2">
+              <Markdown source={event.notes} />
+            </div>
+          ) : (
+            <div className="min-h-[3.5rem] rounded-md bg-[var(--hover)] px-2.5 py-2 text-sm text-[var(--muted)]">
+              Nothing to preview.
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center justify-between">
           <button

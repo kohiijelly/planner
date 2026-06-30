@@ -73,4 +73,14 @@ export type AppState = {
   leftSidebarOpen: boolean;
   rightSidebarOpen: boolean; // user preference; actual visibility is DERIVED (§3.1)
   theme: Theme;
+
+  // Right-sidebar layout preferences (user-adjustable).
+  rightSidebarWidth: number; // px
+  tasksCollapsed: boolean;
+  mealsCollapsed: boolean;
+  habitsCollapsed: boolean;
+  mealsHeight: number; // px, used when Meals is a fixed (non-filler) section
+  habitsHeight: number; // px, used when Habits is a fixed (non-filler) section
 };
+
+export type RightSection = "tasks" | "meals" | "habits";

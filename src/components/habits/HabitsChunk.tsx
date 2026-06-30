@@ -41,41 +41,33 @@ export function HabitsChunk() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(start, i));
 
   return (
-    <section className="flex-shrink-0 border-t border-[var(--border)] p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-        Habits
-      </h2>
+    <>
+      <div className="grid items-center gap-y-1.5" style={{ gridTemplateColumns: GRID_COLS }}>
+        {/* X-axis header: M T W Th F S Su (sticky to the section scroll top) */}
+        <span className="sticky top-0 z-10 bg-[var(--panel)]" />
+        {weekDays.map((day, i) => {
+          const isToday = isSameDay(day, today);
+          return (
+            <span
+              key={i}
+              className={[
+                "sticky top-0 z-10 bg-[var(--panel)] pb-1 text-center text-[11px] font-medium",
+                isToday ? "text-[var(--fg)]" : "text-[var(--muted)]",
+              ].join(" ")}
+            >
+              {DAY_LABELS[i]}
+            </span>
+          );
+        })}
 
-      {/* Rows scroll internally so adding many habits never pushes Meals/Tasks
-          off-screen; the weekday header stays pinned. */}
-      <div className="max-h-44 overflow-y-auto">
-        <div className="grid items-center gap-y-1.5" style={{ gridTemplateColumns: GRID_COLS }}>
-          {/* X-axis header: M T W Th F S Su (sticky) */}
-          <span className="sticky top-0 z-10 bg-[var(--panel)]" />
-          {weekDays.map((day, i) => {
-            const isToday = isSameDay(day, today);
-            return (
-              <span
-                key={i}
-                className={[
-                  "sticky top-0 z-10 bg-[var(--panel)] pb-1 text-center text-[11px] font-medium",
-                  isToday ? "text-[var(--fg)]" : "text-[var(--muted)]",
-                ].join(" ")}
-              >
-                {DAY_LABELS[i]}
-              </span>
-            );
-          })}
-
-          {habits.map((habit, hIdx) => (
-            <HabitRow
-              key={habit.id}
-              habit={habit}
-              color={PASTELS[hIdx % PASTELS.length]}
-              weekDays={weekDays}
-            />
-          ))}
-        </div>
+        {habits.map((habit, hIdx) => (
+          <HabitRow
+            key={habit.id}
+            habit={habit}
+            color={PASTELS[hIdx % PASTELS.length]}
+            weekDays={weekDays}
+          />
+        ))}
       </div>
 
       {habits.length === 0 && (
@@ -93,7 +85,7 @@ export function HabitsChunk() {
         placeholder="Add a habit"
         className="mt-2 w-full rounded-md bg-transparent px-1 py-1 text-sm text-[var(--fg)] placeholder:text-[var(--muted)] focus:bg-[var(--hover)] focus:outline-none"
       />
-    </section>
+    </>
   );
 }
 

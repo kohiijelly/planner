@@ -9,7 +9,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { DEFAULT_CATEGORY_ID } from "../constants";
 import { DAILY_GRID_DROPPABLE_ID } from "./DailyView";
@@ -26,7 +26,6 @@ import { LeftSidebar } from "./LeftSidebar";
 import { RightSidebar } from "./RightSidebar";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const RIGHT_WIDTH = 340;
 
 /** Default duration (minutes) for an event created by dropping a task (step 6). */
 const DROP_EVENT_MINUTES = 30;
@@ -37,8 +36,13 @@ export function AppShell() {
   // §3.1 — Right sidebar visibility is DERIVED. We never mutate rightSidebarOpen
   // on a view change; the selector recomputes it from currentView + preference.
   const rightVisible = useStore(selectRightSidebarVisible);
+  const rightWidth = useStore((s) => s.rightSidebarWidth);
+  const setRightWidth = useStore((s) => s.setRightSidebarWidth);
 
   const [activeTitle, setActiveTitle] = useState<string | null>(null);
+  // While dragging the width handle we kill the width tween so it tracks 1:1.
+  const [resizingWidth, setResizingWidth] = useState(false);
+  const widthDrag = useRef<{ x: number; w: number } | null>(null);
 
   // Long-press to pick up a task: a quick tap operates row controls / edits the
   // title; holding (then moving) starts a drag. Moving before the delay elapses
@@ -116,13 +120,36 @@ export function AppShell() {
             <motion.aside
               key="right-sidebar"
               initial={{ width: 0 }}
-              animate={{ width: RIGHT_WIDTH }}
+              animate={{ width: rightWidth }}
               exit={{ width: 0 }}
-              transition={{ duration: 0.28, ease: EASE }}
-              className="h-full flex-shrink-0 overflow-hidden border-l border-[var(--border)]"
+              transition={resizingWidth ? { duration: 0 } : { duration: 0.28, ease: EASE }}
+              className="relative h-full flex-shrink-0 overflow-hidden border-l border-[var(--border)]"
             >
+              {/* Drag handle on the left edge to widen / narrow the sidebar. */}
+              <div
+                onPointerDown={(e) => {
+                  widthDrag.current = { x: e.clientX, w: rightWidth };
+                  setResizingWidth(true);
+                  (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                  e.preventDefault();
+                }}
+                onPointerMove={(e) => {
+                  if (!widthDrag.current) return;
+                  // Dragging left (smaller clientX) widens the sidebar.
+                  setRightWidth(widthDrag.current.w + (widthDrag.current.x - e.clientX));
+                }}
+                onPointerUp={(e) => {
+                  widthDrag.current = null;
+                  setResizingWidth(false);
+                  (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+                }}
+                className="group absolute inset-y-0 left-0 z-30 w-1.5 cursor-ew-resize touch-none"
+              >
+                <div className="h-full w-0.5 bg-transparent transition-colors group-hover:bg-[var(--muted)]" />
+              </div>
+
               {/* Fixed inner width keeps content from squishing during animation. */}
-              <div className="h-full" style={{ width: RIGHT_WIDTH }}>
+              <div className="h-full" style={{ width: rightWidth }}>
                 <RightSidebar />
               </div>
             </motion.aside>
