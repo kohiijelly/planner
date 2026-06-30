@@ -272,18 +272,6 @@ export function DailyView() {
           {/* Background capture layer for drag-create */}
           <div data-role="grid-bg" className="absolute inset-0" />
 
-          {/* Empty-day hint (§10) — never a blank void; vanishes once events exist. */}
-          {dayEvents.length === 0 && !drag && (
-            <div
-              className="pointer-events-none absolute left-0 right-0 flex items-center justify-center"
-              style={{ top: minutesToY(9 * 60), height: HOUR_HEIGHT }}
-            >
-              <span className="rounded-md px-3 py-1 text-xs text-[var(--muted)]">
-                Drag on the grid to schedule a block
-              </span>
-            </div>
-          )}
-
           {positioned.map((p) => {
             // While interacting with this event, preview from the live drag.
             let sMin = p.startMin;

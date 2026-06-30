@@ -8,16 +8,8 @@ import { IconClose } from "../icons";
 
 const DAY_LABELS = ["M", "T", "W", "Th", "F", "S", "Su"];
 
-// Pastel palette cycled per habit row for the "solid glowing pastel" complete state.
-const PASTELS = [
-  "#A8C7FA",
-  "#C4B5FD",
-  "#A7F3D0",
-  "#FBCFE8",
-  "#FDE68A",
-  "#BFDBFE",
-  "#FCA5A5",
-];
+// Completed cells are a single neutral gray dot regardless of habit.
+const DONE_COLOR = "#9ca3af";
 
 const GRID_COLS = "minmax(0,1fr) repeat(7, 26px)";
 
@@ -60,13 +52,8 @@ export function HabitsChunk() {
           );
         })}
 
-        {habits.map((habit, hIdx) => (
-          <HabitRow
-            key={habit.id}
-            habit={habit}
-            color={PASTELS[hIdx % PASTELS.length]}
-            weekDays={weekDays}
-          />
+        {habits.map((habit) => (
+          <HabitRow key={habit.id} habit={habit} weekDays={weekDays} />
         ))}
       </div>
 
@@ -91,11 +78,9 @@ export function HabitsChunk() {
 
 function HabitRow({
   habit,
-  color,
   weekDays,
 }: {
   habit: Habit;
-  color: string;
   weekDays: Date[];
 }) {
   const toggleHabitCompletion = useStore((s) => s.toggleHabitCompletion);
@@ -134,15 +119,8 @@ function HabitRow({
               className="h-[18px] w-[18px] rounded-full border transition-all"
               style={
                 isDone
-                  ? {
-                      backgroundColor: color,
-                      borderColor: color,
-                      boxShadow: `0 0 8px 0 ${color}`,
-                    }
-                  : {
-                      backgroundColor: "transparent",
-                      borderColor: "var(--border)",
-                    }
+                  ? { backgroundColor: DONE_COLOR, borderColor: DONE_COLOR }
+                  : { backgroundColor: "transparent", borderColor: "var(--border)" }
               }
             />
           </div>

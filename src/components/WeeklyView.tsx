@@ -1,11 +1,18 @@
 import { addDays, addWeeks, format, isSameDay, parseISO, startOfWeek, subWeeks } from "date-fns";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { HOUR_HEIGHT, WEEK_STARTS_ON } from "../constants";
 import { layoutDayEvents, type PositionedEvent } from "../lib/overlap";
-import { DAY_HEIGHT, dateOnlyOf, minutesToY } from "../lib/time";
+import {
+  DAY_HEIGHT,
+  dateOnlyOf,
+  isoFromDateAndMinutes,
+  minutesOfDay,
+  minutesToY,
+} from "../lib/time";
 import { useStore } from "../store";
 import { toDateOnly, type Category } from "../types";
+import { EventEditor } from "./EventEditor";
 import { IconChevronLeft, IconChevronRight } from "./icons";
 
 const GUTTER = 56;
@@ -15,14 +22,25 @@ function formatHour(h: number): string {
   return `${String(h % 24).padStart(2, "0")}:00`;
 }
 
+type WeekDrag = {
+  eventId: string;
+  originDayIndex: number;
+  targetDayIndex: number;
+  moved: boolean;
+};
+
 export function WeeklyView() {
   const selectedDate = useStore((s) => s.selectedDate);
   const setSelectedDate = useStore((s) => s.setSelectedDate);
   const setCurrentView = useStore((s) => s.setCurrentView);
   const events = useStore((s) => s.events);
   const categories = useStore((s) => s.categories);
+  const updateEvent = useStore((s) => s.updateEvent);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const colsRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<WeekDrag | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const weekDays = useMemo(() => {
     const start = startOfWeek(parseISO(selectedDate), {
@@ -56,6 +74,56 @@ export function WeeklyView() {
   const openDay = (day: Date) => {
     setSelectedDate(toDateOnly(day));
     setCurrentView("daily");
+  };
+
+  // Which day column is under the pointer (0–6).
+  const dayIndexFromX = (clientX: number): number => {
+    const rect = colsRef.current?.getBoundingClientRect();
+    if (!rect) return 0;
+    return Math.max(0, Math.min(6, Math.floor((clientX - rect.left) / (rect.width / 7))));
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.dataset.role !== "wevent") return;
+    const id = target.dataset.eventId;
+    if (!id) return;
+    const dayIdx = dayIndexFromX(e.clientX);
+    setDrag({ eventId: id, originDayIndex: dayIdx, targetDayIndex: dayIdx, moved: false });
+    colsRef.current?.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!drag) return;
+    const dayIdx = dayIndexFromX(e.clientX);
+    if (dayIdx !== drag.targetDayIndex || (!drag.moved && dayIdx !== drag.originDayIndex)) {
+      setDrag({
+        ...drag,
+        targetDayIndex: dayIdx,
+        moved: drag.moved || dayIdx !== drag.originDayIndex,
+      });
+    }
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!drag) return;
+    colsRef.current?.releasePointerCapture(e.pointerId);
+
+    if (drag.moved && drag.targetDayIndex !== drag.originDayIndex) {
+      const ev = events.find((x) => x.id === drag.eventId);
+      if (ev) {
+        const newDate = toDateOnly(weekDays[drag.targetDayIndex]);
+        updateEvent(ev.id, {
+          startTime: isoFromDateAndMinutes(newDate, minutesOfDay(ev.startTime)),
+          endTime: isoFromDateAndMinutes(newDate, minutesOfDay(ev.endTime)),
+        });
+      }
+    } else if (!drag.moved) {
+      // A plain click opens the editor.
+      setEditingId(drag.eventId);
+    }
+    setDrag(null);
   };
 
   const goPrev = () =>
@@ -150,21 +218,31 @@ export function WeeklyView() {
             ))}
           </div>
 
-          {/* Day columns */}
+          {/* Day columns — drag an event sideways to move it to another day. */}
           <div
-            className="absolute bottom-0 top-0 flex"
+            ref={colsRef}
+            className="absolute bottom-0 top-0 flex touch-none select-none"
             style={{ left: GUTTER, right: 0 }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
           >
             {weekDays.map((day, i) => (
               <DayColumn
                 key={day.toISOString()}
                 positioned={layoutByDay[i]}
                 categoryById={categoryById}
+                isDropTarget={drag != null && drag.moved && drag.targetDayIndex === i}
+                draggingId={drag?.eventId ?? null}
               />
             ))}
           </div>
         </div>
       </div>
+
+      {editingId && (
+        <EventEditor eventId={editingId} onClose={() => setEditingId(null)} />
+      )}
     </div>
   );
 }
@@ -172,26 +250,41 @@ export function WeeklyView() {
 function DayColumn({
   positioned,
   categoryById,
+  isDropTarget,
+  draggingId,
 }: {
   positioned: PositionedEvent[];
   categoryById: Map<string, Category>;
+  isDropTarget: boolean;
+  draggingId: string | null;
 }) {
   return (
-    <div className="relative flex-1 border-l border-[var(--border)]">
+    <div
+      className={[
+        "relative flex-1 border-l border-[var(--border)] transition-colors",
+        isDropTarget ? "bg-[var(--accent-soft)]" : "",
+      ].join(" ")}
+    >
       {positioned.map((p) => {
         const color = categoryById.get(p.event.categoryId)?.colorCode ?? "#9CA3AF";
         const top = minutesToY(p.startMin);
         const height = Math.max(minutesToY(p.endMin - p.startMin), 12);
         const widthPct = 100 / p.lanes;
         const leftPct = p.lane * widthPct;
+        const isDragging = draggingId === p.event.id;
         return (
           <div
             key={p.event.id}
-            className="absolute overflow-hidden rounded-md px-1.5 py-0.5 text-[11px] leading-tight"
+            data-role="wevent"
+            data-event-id={p.event.id}
+            className={[
+              "absolute cursor-grab overflow-hidden rounded-md px-1.5 py-0.5 text-[11px] leading-tight active:cursor-grabbing",
+              isDragging ? "opacity-40" : "",
+            ].join(" ")}
             style={{
               top,
               height,
-              left: `calc(${leftPct}% + ${leftPct === 0 ? 1 : 1}px)`,
+              left: `calc(${leftPct}% + 1px)`,
               width: `calc(${widthPct}% - 2px)`,
               backgroundColor: `${color}29`,
               borderLeft: `3px solid ${color}`,
@@ -199,7 +292,7 @@ function DayColumn({
             }}
             title={p.event.title || "Untitled"}
           >
-            <span className="block truncate font-medium">
+            <span className="pointer-events-none block truncate font-medium">
               {p.event.title || "Untitled"}
             </span>
           </div>

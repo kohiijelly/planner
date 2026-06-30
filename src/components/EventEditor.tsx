@@ -1,16 +1,17 @@
+import { addDays, parseISO } from "date-fns";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { MIN_EVENT_MINUTES } from "../constants";
+import { openExternal } from "../lib/open";
 import {
   DAY_END_MINUTE,
   isoFromDateAndMinutes,
   minutesOfDay,
 } from "../lib/time";
 import { useStore } from "../store";
-import type { DateOnly } from "../types";
+import { toDateOnly, type DateOnly } from "../types";
 import { CategoryManager } from "./CategoryManager";
-import { Markdown } from "./Markdown";
 import { IconClose, IconPlus } from "./icons";
 
 function minutesToHHMM(min: number): string {
@@ -41,7 +42,6 @@ export function EventEditor({
   const deleteEvent = useStore((s) => s.deleteEvent);
 
   const [manageOpen, setManageOpen] = useState(false);
-  const [notesMode, setNotesMode] = useState<"write" | "preview">("write");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -64,6 +64,14 @@ export function EventEditor({
     const clamped = Math.max(0, Math.min(min, endMin - MIN_EVENT_MINUTES));
     updateEvent(event.id, {
       startTime: isoFromDateAndMinutes(date, clamped),
+    });
+  };
+
+  // Move the event to another calendar day, preserving its time-of-day.
+  const moveToDate = (newDate: DateOnly) => {
+    updateEvent(event.id, {
+      startTime: isoFromDateAndMinutes(newDate, startMin),
+      endTime: isoFromDateAndMinutes(newDate, endMin),
     });
   };
 
@@ -128,6 +136,26 @@ export function EventEditor({
           />
         </div>
 
+        {/* Date — move the block to another day (the date input is a calendar). */}
+        <div className="mb-3 flex items-center gap-2 text-sm">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => {
+              if (e.target.value) moveToDate(e.target.value as DateOnly);
+            }}
+            className="rounded-md border border-[var(--border)] bg-transparent px-2 py-1 text-[var(--fg)] focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => moveToDate(toDateOnly(addDays(parseISO(date), 1)))}
+            title="Move to the next day"
+            className="rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--fg)]"
+          >
+            Next day →
+          </button>
+        </div>
+
         {/* Category — selecting changes the event color. */}
         <div className="mb-3">
           <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
@@ -169,48 +197,12 @@ export function EventEditor({
           </div>
         </div>
 
-        {/* Notes — markdown supported. Switch to Preview for clickable links. */}
+        {/* Notes — rich text. ⌘B bolds the selection, ⌘K inserts a link. */}
         <div className="mb-3">
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
-              Notes
-            </span>
-            <div className="flex items-center gap-0.5 rounded-md bg-[var(--hover)] p-0.5 text-xs">
-              {(["write", "preview"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setNotesMode(mode)}
-                  className={[
-                    "rounded px-2 py-0.5 capitalize transition-colors",
-                    notesMode === mode
-                      ? "bg-[var(--panel)] text-[var(--fg)] shadow-sm"
-                      : "text-[var(--muted)] hover:text-[var(--fg)]",
-                  ].join(" ")}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {notesMode === "write" ? (
-            <textarea
-              value={event.notes}
-              onChange={(e) => updateEvent(event.id, { notes: e.target.value })}
-              placeholder="Add notes… (markdown: **bold**, [link](https://…), - lists)"
-              rows={4}
-              className="w-full resize-y rounded-md bg-[var(--hover)] px-2 py-1.5 font-mono text-sm text-[var(--fg)] placeholder:text-[var(--muted)] focus:outline-none"
-            />
-          ) : event.notes.trim() ? (
-            <div className="max-h-48 min-h-[3.5rem] overflow-y-auto rounded-md bg-[var(--hover)] px-2.5 py-2">
-              <Markdown source={event.notes} />
-            </div>
-          ) : (
-            <div className="min-h-[3.5rem] rounded-md bg-[var(--hover)] px-2.5 py-2 text-sm text-[var(--muted)]">
-              Nothing to preview.
-            </div>
-          )}
+          <RichNotes eventId={event.id} initialHtml={event.notes} />
+          <p className="mt-1 px-0.5 text-[11px] text-[var(--muted)]">
+            ⌘B bold · ⌘K link · ⌘-click a link to open
+          </p>
         </div>
 
         <div className="flex items-center justify-between">
@@ -238,5 +230,77 @@ export function EventEditor({
         <CategoryManager autoCreate onClose={() => setManageOpen(false)} />
       )}
     </div>
+  );
+}
+
+/**
+ * WYSIWYG notes editor. Stores HTML in `event.notes`. Uncontrolled so the
+ * caret never jumps: we seed innerHTML once per event and only read back out.
+ * ⌘B / Ctrl+B toggles bold; ⌘K / Ctrl+K wraps the selection in a link.
+ */
+function RichNotes({
+  eventId,
+  initialHtml,
+}: {
+  eventId: string;
+  initialHtml: string;
+}) {
+  const updateEvent = useStore((s) => s.updateEvent);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current) ref.current.innerHTML = initialHtml ?? "";
+    // Re-seed only when switching to a different event.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  const save = () => updateEvent(eventId, { notes: ref.current?.innerHTML ?? "" });
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const key = e.key.toLowerCase();
+    if (key === "b") {
+      e.preventDefault();
+      document.execCommand("bold");
+      save();
+    } else if (key === "k") {
+      e.preventDefault();
+      const raw = window.prompt("Link URL");
+      if (raw) {
+        const href = /^[a-z][\w+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
+        // If nothing is selected, drop the URL in as its own link text.
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) {
+          document.execCommand("insertHTML", false, `<a href="${href}">${href}</a>`);
+        } else {
+          document.execCommand("createLink", false, href);
+        }
+        save();
+      }
+    }
+  };
+
+  const onClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = (e.target as HTMLElement).closest("a");
+    if (anchor && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void openExternal(anchor.getAttribute("href") ?? undefined);
+    }
+  };
+
+  return (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      aria-multiline="true"
+      data-placeholder="Add notes…"
+      onInput={save}
+      onBlur={save}
+      onKeyDown={onKeyDown}
+      onClickCapture={onClickCapture}
+      className="notes-editor max-h-56 min-h-[5rem] w-full overflow-y-auto rounded-md bg-[var(--hover)] px-2.5 py-2 text-sm leading-relaxed text-[var(--fg)] focus:outline-none"
+    />
   );
 }
